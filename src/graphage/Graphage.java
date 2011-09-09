@@ -11,7 +11,6 @@ import graphage.gui.MyDisplay;
  */
 public class Graphage {
 	public static void main(String[] args){
-		System.out.println("Hello World!");
 		MyDisplay p = new MyDisplay("Test");
 		p.load("image.png");
 		p.run();
