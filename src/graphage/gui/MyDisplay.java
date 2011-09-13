@@ -27,6 +27,7 @@ public class MyDisplay {
 	protected Raster gry_rast;
 	protected WritableRaster col_w_rast;
 	protected WritableRaster gry_w_rast;
+	protected WritableRaster bw_w_rast;
 	
 	protected GridBagConstraints gbcons;
 	
@@ -35,15 +36,12 @@ public class MyDisplay {
 	private static final double RED_BIAS = 0.21;
 	private static final double GREEN_BIAS = 0.71;
 	private static final double BLUE_BIAS = 0.07;
-	private static final int RED_VALUE = 0;
-	private static final int GREEN_VALUE = 1;
-	private static final int BLUE_VALUE = 2;
-	private static final int GREY_VALUE = 3;
 	
 	protected int th_red;
 	protected int th_green;
 	protected int th_blue;
 	protected int th_grey;
+	protected int th_bw;
 	protected int img_width;
 	protected int img_height;
 	
@@ -51,15 +49,17 @@ public class MyDisplay {
 	protected JSlider sl_green;
 	protected JSlider sl_blue;
 	protected JSlider sl_grey;
+	protected JSlider sl_bw;
 	
 	protected JLabel lb_img;
 	protected JLabel lb_red;
 	protected JLabel lb_green;
 	protected JLabel lb_blue;
 	protected JLabel lb_grey;
+	protected JLabel lb_bw;
 	
 	protected JButton colswitch;
-	private boolean isColour;
+	private int isColour;
 	
 	
 	public MyDisplay(String _title){
@@ -72,6 +72,7 @@ public class MyDisplay {
 		th_green = 255;
 		th_blue = 255;
 		th_grey = 255;
+		th_bw = 127;
 	}
 	
 	/**
@@ -97,8 +98,9 @@ public class MyDisplay {
 	}
 	
 	/**
-	 * Converts <code>image</code> from a colour image to grayscale and stores
-	 * the result in <code>image_grey</code>
+	 * Converts <code>image</code> from a colour image to grayscale
+	 * @param _ras colour <code>Raster</code>
+	 * @return a greyscale representation of <code>_ras</code>
 	 */
 	private WritableRaster convertToGrey(Raster _ras){
 		WritableRaster image_writable_ras = _ras.createCompatibleWritableRaster();
@@ -118,6 +120,29 @@ public class MyDisplay {
 	}
 	
 	/**
+	 * Converts <code>image</code> from a grey image to black and white
+	 */
+	private WritableRaster convertToBW(Raster _ras){
+		WritableRaster image_writable_ras = _ras.createCompatibleWritableRaster();
+		int image_w = _ras.getWidth();
+		int image_h = _ras.getHeight();
+		int grey_val = 0;
+		int pVals[] = new int[4];
+		int blPix[] = {0,0,0,1};
+		int delPix[] = {255,255,255,1};
+		// Iterate through each row, converting each pixel to grey
+		for(int j = 0; j < image_h; j++){
+			for(int i = 0; i < image_w; i++){
+				if(_ras.getPixel(i, j, pVals)[0] > th_bw)
+					image_writable_ras.setPixel(i, j, delPix);
+				else
+					image_writable_ras.setPixel(i, j, blPix);
+			}
+		}
+		return image_writable_ras;
+	}
+	
+	/**
 	 * Re-draws a <code>WritableRaster</code> that is biased by a threashold
 	 * @param _value
 	 * @param _th
@@ -125,12 +150,12 @@ public class MyDisplay {
 	 * @param _curr_wr
 	 * @return
 	 */
-	private WritableRaster threashold(boolean isColour, Raster _r){
+	private WritableRaster threashold(int isColour, Raster _r){
 		int[] delPix = {255,255,255,1};
 		int[] tmp_otmp = new int[4];
 		int[] tmp_tmp = new int[4];
 		WritableRaster rRast = _r.createCompatibleWritableRaster();
-		if(isColour){
+		if(isColour == 0){
 			for(int j = 0; j < img_height; j++){
 				for(int i = 0; i < img_width; i++){
 					tmp_otmp = _r.getPixel(i, j, tmp_tmp);
@@ -144,7 +169,7 @@ public class MyDisplay {
 						rRast.setPixel(i,j,tmp_otmp);
 				}
 			}
-		}else{
+		}else if(isColour == 1){
 			for(int j = 0; j < img_height; j++){
 				for(int i = 0; i < img_width; i++){
 					tmp_otmp = _r.getPixel(i, j, tmp_tmp);
@@ -152,6 +177,18 @@ public class MyDisplay {
 						rRast.setPixel(i, j, delPix);
 					else
 						rRast.setPixel(i,j,tmp_otmp);
+				}
+			}
+		}else{
+			int[] blPix = {0,0,0,1};
+			for(int j = 0; j < img_height; j++){
+				for(int i = 0; i < img_width; i++){
+					tmp_otmp = _r.getPixel(i, j, tmp_tmp);
+					// If the grey pixel is ABOVE the threashold, make it white
+					if(tmp_otmp[0] > th_bw)
+						rRast.setPixel(i, j, delPix);
+					else // Otherwise make it black
+						rRast.setPixel(i,j,blPix);
 				}
 			}
 		}
@@ -200,8 +237,13 @@ public class MyDisplay {
 					col_w_rast.setPixel(i, j, tmp_otmp);
 				}
 			}
+			
+			// Convert the colour image to grey
 			gry_w_rast = convertToGrey(col_rast);
 			gry_rast = (Raster) gry_w_rast;
+			
+			// Convert the grey image to b&w
+			bw_w_rast = convertToBW(gry_rast);
 			
 			//buff_image.setData(image.getData());
 			buff_image.setData(col_w_rast);
@@ -219,7 +261,7 @@ public class MyDisplay {
 						JSlider _slider = (JSlider)slev.getSource();  
 						//if (!_slider.getValueIsAdjusting()) {
 							th_red = _slider.getValue();
-							col_w_rast = threashold(true,col_rast);
+							col_w_rast = threashold(0,col_rast);
 							buff_image.setData(col_w_rast);
 							ds_image.set(buff_image);
 						//}
@@ -238,7 +280,7 @@ public class MyDisplay {
 						JSlider _slider = (JSlider)slev.getSource();  
 						//if (!_slider.getValueIsAdjusting()) {
 							th_green = _slider.getValue();
-							col_w_rast = threashold(true,col_rast);
+							col_w_rast = threashold(0,col_rast);
 							buff_image.setData(col_w_rast);
 							ds_image.set(buff_image);
 						//}
@@ -257,7 +299,7 @@ public class MyDisplay {
 						JSlider _slider = (JSlider)slev.getSource();  
 						//if (!_slider.getValueIsAdjusting()) {
 							th_blue = _slider.getValue();
-							col_w_rast = threashold(true,col_rast);
+							col_w_rast = threashold(0,col_rast);
 							buff_image.setData(col_w_rast);
 							ds_image.set(buff_image);
 						//}
@@ -277,8 +319,28 @@ public class MyDisplay {
 						JSlider _slider = (JSlider)slev.getSource();  
 						//if (!_slider.getValueIsAdjusting()) {
 							th_grey = _slider.getValue();
-							gry_w_rast = threashold(false,gry_rast);
+							gry_w_rast = threashold(1,gry_rast);
 							buff_image.setData(gry_w_rast);
+							ds_image.set(buff_image);
+						//}
+					}catch(Exception e){
+						System.out.println(e.toString());
+					}
+				}
+			});
+
+			sl_bw = new JSlider(JSlider.HORIZONTAL,0,255,127);
+			sl_bw.setMajorTickSpacing(15);
+			sl_bw.setMinorTickSpacing(5);
+			sl_bw.setPaintTicks(true);
+			sl_bw.addChangeListener(new ChangeListener() {
+				public void stateChanged(ChangeEvent slev) {
+					try{
+						JSlider _slider = (JSlider)slev.getSource();  
+						//if (!_slider.getValueIsAdjusting()) {
+							th_bw = _slider.getValue();
+							bw_w_rast = threashold(2,gry_rast);
+							buff_image.setData(bw_w_rast);
 							ds_image.set(buff_image);
 						//}
 					}catch(Exception e){
@@ -291,6 +353,7 @@ public class MyDisplay {
 			lb_green = new JLabel("Green threashold");
 			lb_blue = new JLabel("Blue threashold");
 			lb_grey = new JLabel("Grey Threashold");
+			lb_bw = new JLabel("B&W Threashold");
 			
 			// Add red slider
 			gbcons.fill = GridBagConstraints.HORIZONTAL;
@@ -323,9 +386,9 @@ public class MyDisplay {
 			gbcons.gridy = 1;
 			colswitch.addActionListener(new ActionListener() {
 			    public void actionPerformed(ActionEvent e) {
-			        if(isColour){
-			        	isColour = false;
-			        	colswitch.setText("Colour");
+			        if(isColour == 0){
+			        	isColour = 2;
+			        	colswitch.setText("B & W");
 			        	sl_red.setEnabled(false);
 			        	sl_green.setEnabled(false);
 			        	sl_blue.setEnabled(false);
@@ -334,9 +397,11 @@ public class MyDisplay {
 			        	lb_blue.setEnabled(false);
 			        	sl_grey.setEnabled(true);
 			        	lb_grey.setEnabled(true);
+			        	sl_bw.setEnabled(false);
+			        	lb_bw.setEnabled(false);
 			        	buff_image.setData(gry_w_rast);
-			        }else{
-			        	isColour = true;
+			        }else if(isColour == 1){
+			        	isColour = 0;
 			        	colswitch.setText("Greyscale");
 			        	sl_red.setEnabled(true);
 			        	sl_green.setEnabled(true);
@@ -346,7 +411,23 @@ public class MyDisplay {
 			        	lb_blue.setEnabled(true);
 			        	sl_grey.setEnabled(false);
 			        	lb_grey.setEnabled(false);
+			        	sl_bw.setEnabled(false);
+			        	lb_bw.setEnabled(false);
 			        	buff_image.setData(col_w_rast);
+			        }else{
+			        	isColour = 1;
+			        	colswitch.setText("Colour");
+			        	sl_red.setEnabled(false);
+			        	sl_green.setEnabled(false);
+			        	sl_blue.setEnabled(false);
+			        	lb_red.setEnabled(false);
+			        	lb_green.setEnabled(false);
+			        	lb_blue.setEnabled(false);
+			        	sl_grey.setEnabled(false);
+			        	lb_grey.setEnabled(false);
+			        	sl_bw.setEnabled(true);
+			        	lb_bw.setEnabled(true);
+			        	buff_image.setData(bw_w_rast);
 			        }
 			        ds_image.set(buff_image);
 			    }
@@ -356,14 +437,24 @@ public class MyDisplay {
 			// Add grey slider
 			gbcons.gridheight = 1;
 			gbcons.gridx = 3;
-			gbcons.gridy = 2;
+			gbcons.gridy = 1;
 			panel.add(lb_grey,gbcons);
 			gbcons.gridx = 4;
 			panel.add(sl_grey,gbcons);
 			sl_grey.setEnabled(false);
 			lb_grey.setEnabled(false);
 			
-			isColour = true;
+			// Add b&w slider
+			gbcons.gridheight = 1;
+			gbcons.gridx = 3;
+			gbcons.gridy = 3;
+			panel.add(lb_bw,gbcons);
+			gbcons.gridx = 4;
+			panel.add(sl_bw,gbcons);
+			sl_bw.setEnabled(false);
+			lb_bw.setEnabled(false);
+			
+			isColour = 0;
 			
 		}catch(Exception e){
 			System.out.println("Error: " + e.toString());
