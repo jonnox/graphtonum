@@ -5,14 +5,14 @@ import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import javax.media.jai.*;
 
-import java.awt.Component;
-import java.awt.Container;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.image.*;
 import com.sun.media.jai.widget.*;
+
+import java.awt.Robot;
 
 
 public class MyDisplay {
@@ -64,10 +64,10 @@ public class MyDisplay {
 	
 	public MyDisplay(String _title){
 		frame = new JFrame(_title);
-		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 		panel = new JPanel(new GridBagLayout());
 		gbcons = new GridBagConstraints();
-		image = null;
+		col_rast = null;
 		th_red = 255;
 		th_green = 255;
 		th_blue = 255;
@@ -196,10 +196,25 @@ public class MyDisplay {
 		return rRast;
 	}
 	
-	public void load(String imagename){
+	/**
+	 * Creates a new threasholding image from a file
+	 * @param filename image file path
+	 */
+	public void load(String filename){
+		image = JAI.create("fileload", filename);
+		this._load(image.getData());
+	}
+	
+	/**
+	 * Creates a new threasholding image from an existing <code>Raster</code>
+	 * @param filename an image Raster
+	 */
+	public void load(Raster raster){
+		this._load(raster);
+	}
+	
+	private void _load(Raster image){
 		try{
-			// Load image file
-			image = JAI.create("fileload", imagename);
 			// Adjust frame to image size with room for controls
 			int frame_width, frame_height;
 			
@@ -208,7 +223,7 @@ public class MyDisplay {
 			
 			// Create buffered image to display
 			buff_image = new BufferedImage(frame_width, frame_height, BufferedImage.TYPE_INT_RGB);
-			
+
 			if(frame_width < MIN_FRAME_WIDTH)
 				frame_width = MIN_FRAME_WIDTH;
 			if(frame_height < MIN_FRAME_HEIGHT)
@@ -227,7 +242,8 @@ public class MyDisplay {
 			//
 			// Create Rasters and WriteableRasters for colour and B&W  
 			//
-			col_rast = image.getData();
+			col_rast = image;
+			
 			int tmp_tmp[] = new int[4];
 			int tmp_otmp[] = new int[4];
 			col_w_rast = col_rast.createCompatibleWritableRaster();
@@ -457,7 +473,7 @@ public class MyDisplay {
 			isColour = 0;
 			
 		}catch(Exception e){
-			System.out.println("Error: " + e.toString());
+			System.out.println(frame.getTitle() + " - Error: " + e.toString());
 		}
 	}
 	
@@ -468,7 +484,7 @@ public class MyDisplay {
 	 * @author Jon Elliott
 	 */
 	public void run(){
-		if(image != null){
+		if(col_rast != null){
 			frame.pack();
 			frame.setVisible(true);
 		}else{
