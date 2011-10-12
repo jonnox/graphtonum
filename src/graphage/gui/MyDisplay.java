@@ -1,14 +1,23 @@
 package graphage.gui;
 
+import graphage.SelectableArea;
+import graphsolver.ImageManip;
+
 import javax.swing.*;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import javax.media.jai.*;
 
+import java.awt.Color;
+import java.awt.Cursor;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
+import java.awt.Rectangle;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.MouseEvent;
+import java.awt.event.MouseListener;
+import java.awt.event.MouseMotionAdapter;
 import java.awt.image.*;
 import com.sun.media.jai.widget.*;
 
@@ -19,6 +28,7 @@ public class MyDisplay {
 	
 	protected JFrame frame;
 	protected JPanel panel;
+	protected DrawableJPanel dpanel;
 	
 	DisplayJAI ds_image;
 	protected BufferedImage buff_image;
@@ -59,13 +69,15 @@ public class MyDisplay {
 	protected JLabel lb_bw;
 	
 	protected JButton colswitch;
+	protected JButton crop;
 	private int isColour;
-	
+	private boolean bCrop;
 	
 	public MyDisplay(String _title){
 		frame = new JFrame(_title);
-		frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		panel = new JPanel(new GridBagLayout());
+		dpanel = new DrawableJPanel(new GridBagLayout());
 		gbcons = new GridBagConstraints();
 		col_rast = null;
 		th_red = 255;
@@ -73,6 +85,7 @@ public class MyDisplay {
 		th_blue = 255;
 		th_grey = 255;
 		th_bw = 127;
+		bCrop = false;
 	}
 	
 	/**
@@ -213,14 +226,23 @@ public class MyDisplay {
 		this._load(raster);
 	}
 	
+	private void pe(int num){
+		System.out.print("R:" + num);
+	}
+	
 	private void _load(Raster image){
 		try{
+			ImageManip imanip = new ImageManip(image);
+			//imanip.splitImage(10, false);
+			
+			InteractivePlotFinder ipf = new InteractivePlotFinder("Test",image);
+			
 			// Adjust frame to image size with room for controls
 			int frame_width, frame_height;
 			
 			img_width = frame_width = image.getWidth();
 			img_height = frame_height = image.getHeight();
-			
+
 			// Create buffered image to display
 			buff_image = new BufferedImage(frame_width, frame_height, BufferedImage.TYPE_INT_RGB);
 
@@ -232,7 +254,7 @@ public class MyDisplay {
 			frame.setSize(frame_width,frame_height);
 			// Add a panel to frame
 			frame.getContentPane().add(panel);
-			
+		
 			// Add image 
 			gbcons.fill = GridBagConstraints.HORIZONTAL;
 			gbcons.gridwidth = 5;
@@ -243,17 +265,24 @@ public class MyDisplay {
 			// Create Rasters and WriteableRasters for colour and B&W  
 			//
 			col_rast = image;
-			
+		
 			int tmp_tmp[] = new int[4];
 			int tmp_otmp[] = new int[4];
+			
+			//System.out.println("  img: " + img_width + "," + img_height);
+		    //System.out.println("  col_rast: " + col_rast.getWidth() + "," + col_rast.getHeight());
+		    
 			col_w_rast = col_rast.createCompatibleWritableRaster();
+			
+			//System.out.println("  col_w_rast: " + col_w_rast.getWidth() + "," + col_w_rast.getHeight());
+			
 			for(int j = 0; j < img_height; j++){
 				for(int i = 0; i < img_width; i++){
 					tmp_otmp = col_rast.getPixel(i, j, tmp_tmp);
 					col_w_rast.setPixel(i, j, tmp_otmp);
 				}
 			}
-			
+
 			// Convert the colour image to grey
 			gry_w_rast = convertToGrey(col_rast);
 			gry_rast = (Raster) gry_w_rast;
@@ -266,7 +295,8 @@ public class MyDisplay {
 			
 			ds_image = new DisplayJAI(buff_image);
 			//ds_image = new DisplayJAI(image);
-			panel.add(ds_image,gbcons);
+			dpanel.add(ds_image);
+			panel.add(dpanel,gbcons);
 			
 			sl_red = new JSlider(JSlider.HORIZONTAL,0,255,255);
 			sl_red.setMajorTickSpacing(15);
@@ -395,9 +425,105 @@ public class MyDisplay {
 			gbcons.gridx = 1;
 			panel.add(sl_blue,gbcons);
 			
+			// Add crop button
+			crop = new JButton("** Crop **");
+			gbcons.gridheight = 1;
+			gbcons.gridx = 2;
+			gbcons.gridy = 3;
+			crop.addActionListener(new ActionListener() {
+			    public void actionPerformed(ActionEvent e) {
+			    	if(!bCrop){
+			    		dpanel.setCrop();
+			    		dpanel.repaint();
+			    		dpanel.setCursor(new Cursor(Cursor.CROSSHAIR_CURSOR));
+			    		bCrop = true;
+			    	}
+			    }
+			});
+			panel.add(crop,gbcons);
+			dpanel.addMouseListener(new MouseListener(){
+				public void mouseClicked(MouseEvent e){
+					
+				}
+
+				public void mouseEntered(MouseEvent e) {
+					
+				}
+
+				public void mouseExited(MouseEvent e) {
+					
+				}
+
+				public void mousePressed(MouseEvent e){
+					if(e.getButton() == MouseEvent.BUTTON1){
+						dpanel.setCropPoint(e.getPoint());
+					}else{
+						dpanel.unsetCrop();
+			    		dpanel.setCursor(new Cursor(Cursor.DEFAULT_CURSOR));
+			    		bCrop = false;
+			    		//System.out.println("Image location: " + ds_image.getX() + "," + ds_image.getY() + " - " + e.getPoint());
+					}
+				}
+
+				public void mouseReleased(MouseEvent e){
+					if(e.getButton() == MouseEvent.BUTTON1){
+						if(bCrop){
+							try{
+								MyDisplay newDispCrop = new MyDisplay(frame.getTitle() + " - crop");
+								WritableRaster tmpWritRast,myras;
+								
+								
+								Rectangle adjRec = dpanel.getCropRect(ds_image.getX(),
+										ds_image.getY(),
+										ds_image.getWidth(),
+										ds_image.getHeight());
+								
+								BufferedImage tmpBuffImage = new BufferedImage(col_rast.getWidth(), col_rast.getHeight(), BufferedImage.TYPE_INT_RGB);
+								
+								tmpBuffImage.setData(col_rast);
+								
+								myras = tmpBuffImage.getRaster();
+								
+								adjRec.x = adjRec.x - ds_image.getX();
+								adjRec.y = adjRec.y - ds_image.getY();
+								int tmp_tmp[] = new int[4];
+								int tmp_otmp[] = new int[4];
+								tmpWritRast = col_rast.createCompatibleWritableRaster(adjRec.width, adjRec.height);
+								for(int j=adjRec.y; j < adjRec.height; j++){
+									for(int i=adjRec.x; i < adjRec.width; i++){
+										tmp_otmp = myras.getPixel(i, j, tmp_tmp);
+										tmpWritRast.setPixel(i - adjRec.x, j - adjRec.y, tmp_otmp);
+									}
+								}
+								
+								//myras = buff_image.copyData(myras);
+								
+								 //= myras.createCompatibleWritableRaster();
+								
+								//System.out.println("myras:" + myras.getWidth() + "," + myras.getHeight());
+								newDispCrop.load(tmpWritRast);
+								newDispCrop.run();
+							}catch(Exception em){
+								System.out.println("\n ERROR: " + em.getMessage());
+							}
+							dpanel.unsetCrop();
+				    		dpanel.setCursor(new Cursor(Cursor.DEFAULT_CURSOR));
+				    		bCrop = false;
+						}
+					}
+				}
+			});
+			dpanel.addMouseMotionListener(new MouseMotionAdapter() {
+				public void mouseDragged(MouseEvent e) {
+					if(bCrop){
+						dpanel.updateCrop(e.getPoint());
+					}
+				}
+			});
+			
 			// Add button
 			colswitch = new JButton("Greyscale");
-			gbcons.gridheight = 3;
+			gbcons.gridheight = 2;
 			gbcons.gridx = 2;
 			gbcons.gridy = 1;
 			colswitch.addActionListener(new ActionListener() {
